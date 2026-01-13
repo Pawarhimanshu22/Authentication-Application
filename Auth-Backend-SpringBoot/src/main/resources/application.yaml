@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: Auth-Backend-SpringBoot
+
+  profiles:
+      active: dev
+
+
+#Configuration for Database
+
+
+
+
+#

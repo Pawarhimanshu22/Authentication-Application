@@ -7,5 +7,6 @@ public enum Provider {
     GITHUB,
     TWITTER,
     LINKEDIN,
-    APPLE
+    APPLE,
+    Azure_AD
 }

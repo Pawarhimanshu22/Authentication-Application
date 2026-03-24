@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8080
 
 # Database configuration for development environment
 spring:
@@ -40,8 +40,7 @@ spring:
         elideSetAutoCommits: true
         maintainTimeStats: false
 
-
-
+  # JPA and Hibernate configuration
   jpa:
     hibernate:
       ddl-auto: update

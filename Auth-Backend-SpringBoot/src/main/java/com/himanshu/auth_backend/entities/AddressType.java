@@ -5,5 +5,6 @@ public enum AddressType {
     WORK,
     BILLING,
     SHIPPING,
+    OFFICE,
     OTHER
 }

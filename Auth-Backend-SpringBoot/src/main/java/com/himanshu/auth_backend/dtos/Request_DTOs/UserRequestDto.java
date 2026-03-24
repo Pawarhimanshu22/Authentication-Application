@@ -1,5 +1,6 @@
 package com.himanshu.auth_backend.dtos.Request_DTOs;
 
+import com.himanshu.auth_backend.entities.Provider;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
@@ -42,4 +43,5 @@ public class UserRequestDto {
 
     @Size(max = 1000, message = "Bio must not exceed 1000 characters")
     private String bio;
+
 }

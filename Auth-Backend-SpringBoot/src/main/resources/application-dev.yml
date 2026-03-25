@@ -49,4 +49,4 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-    open-in-view: false
+    open-in-view: true

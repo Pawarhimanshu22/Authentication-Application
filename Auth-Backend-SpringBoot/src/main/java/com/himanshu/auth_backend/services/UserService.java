@@ -1,5 +1,6 @@
 package com.himanshu.auth_backend.services;
 
+import com.himanshu.auth_backend.dtos.Request_DTOs.AddressRequestDto;
 import com.himanshu.auth_backend.dtos.Request_DTOs.UserRequestDto;
 import com.himanshu.auth_backend.dtos.Response_DTOs.UserResponseDto;
 import com.himanshu.auth_backend.entities.Provider;
@@ -43,7 +44,7 @@ public interface UserService {
      * @return a {@link UserResponseDto} representing the updated user
      * @throws UserNotFoundException if no user exists with the given ID
      */
-    UserResponseDto updateUser(UUID id, UserRequestDto userRequestDto);
+    UserResponseDto updateUser(UUID id, UserRequestDto userRequestDto, AddressRequestDto addressRequestDto);
 
     /**
      * Deletes a user by their unique identifier.

@@ -144,4 +144,26 @@ public class JwtService {
                 .getId();
     }
 
+    public List<String> getRoles(String token) {
+        Claims claims = parse(token).getPayload();
+
+        Object rolesObj = claims.get("roles");
+
+        if (!(rolesObj instanceof List<?> roles)) {
+            return List.of();
+        }
+
+        return roles.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .toList();
+    }
+
+    public String getEmail(String token) {
+        Claims claims = parse(token).getPayload();
+        return claims.get("email", String.class);
+    }
+
+
+
 }

@@ -1,5 +1,9 @@
 package com.himanshu.auth_backend.config;
 
+import com.himanshu.auth_backend.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -8,13 +12,21 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfiguration {
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
 
 /**
@@ -57,6 +69,12 @@ public class SecurityConfiguration {
     public SecurityFilterChain springsSecurityFilterChain(HttpSecurity http) throws Exception {
 
         http.csrf(AbstractHttpConfigurer::disable);
+        http.cors(Customizer.withDefaults());
+        http.sessionManagement(sessionManagement ->
+                sessionManagement.sessionCreationPolicy(
+                        SessionCreationPolicy.STATELESS
+                )
+        );
         http
                 .authorizeHttpRequests(authorizeHttpRequests ->
                         authorizeHttpRequests
@@ -64,7 +82,32 @@ public class SecurityConfiguration {
                                 .requestMatchers("/api/v1/auth/login").permitAll()
                         .anyRequest().authenticated()
                 )
-                .httpBasic(Customizer.withDefaults());
+//                .httpBasic(Customizer.withDefaults());
+                .exceptionHandling(exceptionHandling ->
+                        exceptionHandling.authenticationEntryPoint(
+                                (request, response, authException) -> {
+
+                                    authException.printStackTrace(); // Log the exception for debugging
+                                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                    response.setContentType("application/json");
+
+                                    String message = "Unauthorized access: "
+                                            + authException.getMessage();
+
+                                    Map<String, String> errorMap = Map.of(
+                                            "message", message,
+                                            "status", String.valueOf(401),
+                                            "statusCode", Integer.toString(HttpServletResponse.SC_UNAUTHORIZED)
+                                    );
+
+                                    var objectMapper = new ObjectMapper();
+                                    response.getWriter().write(
+                                            objectMapper.writeValueAsString(errorMap)
+                                    );
+                                }
+                        )
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

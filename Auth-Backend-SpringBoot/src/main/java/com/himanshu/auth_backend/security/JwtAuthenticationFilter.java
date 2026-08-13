@@ -11,20 +11,28 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends OncePerRequestFilter
-{
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
+    private Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     /**
      * @param request
@@ -33,126 +41,75 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter
      * @throws ServletException
      * @throws IOException
      */
-
-    private final JwtService jwtService;
-    private final UserRepository  userRepository;
-
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
 
-        String authorizationHeader =
-                request.getHeader("Authorization");
+        String header = request.getHeader("Authorization");
+        logger.info("Authorization header: " + header);
 
-        // No Authorization header → continue normally
-        if (authorizationHeader == null ||
-                !authorizationHeader.startsWith("Bearer ")) {
-
+        // Agar Bearer token nahi hai to seedha aage badh jao
+        if (header == null || !header.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = authorizationHeader.substring(7).trim();
+        String token = header.substring(7);
 
-        // Empty Bearer token
-        if (token.isEmpty()) {
-            sendUnauthorized(response, "Bearer token is missing");
-            return;
-        }
 
         try {
 
-            // Parse + verify signature + validate expiration
-            Jws<Claims> parsedToken = jwtService.parse(token);
-
-            Claims payload = parsedToken.getPayload();
-
-            String userID = payload.getSubject();
-
-            UUID userUuid = UserHelper.parseUUID(userID);
-
-            //User mil gaya from DB
-            userRepository.findById(userUuid)
-                    .ifPresent(Users::getAuthorities)
-
-            // Only Access Tokens are accepted by this filter
-            String tokenType = payload.get("typ", String.class);
-
-            if (!"access".equals(tokenType)) {
-                sendUnauthorized(response, "Invalid token type");
+            //Check for access token
+            if (!jwtService.isAccessToken(token)) {
+                filterChain.doFilter(request, response);
                 return;
             }
+            logger.info("Access token: " + token);
 
-            // Get user ID from JWT subject
+            // Step 1: token verify karo aur claims nikalo
+            Jws<Claims> parse = jwtService.parse(token);
+            Claims payload = parse.getPayload();
+
             String userId = payload.getSubject();
+            UUID userUuid = UserHelper.parseUUID(userId);
 
-            if (userId == null || userId.isBlank()) {
-                sendUnauthorized(response, "User ID is missing from token");
-                return;
-            }
+            // Step 2: DB se user dhundo
+            userRepository.findById(userUuid).ifPresent(user -> {
 
-            // Get roles from JWT
-            List<SimpleGrantedAuthority> authorities =
-                    getAuthorities(payload);
+                if (user.isEnabled())
+                {
 
-            // Create Spring Security Authentication
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userId,
-                            null,
-                            authorities
-                    );
+                // Step 3: roles ko GrantedAuthority me convert karo
+                List<GrantedAuthority> authorities = getAuthorities(user);
 
-            // Store authentication in SecurityContext
-            SecurityContextHolder.getContext()
-                    .setAuthentication(authentication);
+                // Step 4: authentication object banao
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);
 
-            // Continue request
-            filterChain.doFilter(request, response);
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-        } catch (JwtException | IllegalArgumentException e) {
+                if (SecurityContextHolder.getContext().getAuthentication() == null)
+                    // Step 5: security context me set karo
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
 
-            // Invalid / expired / malformed / tampered token
-            SecurityContextHolder.clearContext();
+            });
 
-            sendUnauthorized(
-                    response,
-                    "Invalid or expired access token"
-            );
         }
+        catch (JwtException | IllegalArgumentException e) {
+            // invalid / expired / tampered token -> user simply unauthenticated rahega
+            e.printStackTrace();
+        }
+
+        filterChain.doFilter(request, response);
     }
 
-    private List<SimpleGrantedAuthority> getAuthorities(
-            Claims claims) {
-
-        Object rolesObject = claims.get("roles");
-
-        if (!(rolesObject instanceof List<?> roles)) {
+    private List<GrantedAuthority> getAuthorities(Users user) {
+        if (user.getRoles() == null) {
             return List.of();
         }
-
-        return roles.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(SimpleGrantedAuthority::new)
-                .toList();
-    }
-
-    private void sendUnauthorized(
-            HttpServletResponse response,
-            String message)
-            throws IOException {
-
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-
-        response.getWriter().write(
-                """
-                {
-                    "status": 401,
-                    "error": "Unauthorized",
-                    "message": "%s"
-                }
-                """.formatted(message)
-        );
+        return user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority(role.getRoleName().name()))
+                .collect(Collectors.toList());
     }
 }

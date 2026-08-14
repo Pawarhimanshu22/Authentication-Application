@@ -6,13 +6,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 
 
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -80,6 +83,8 @@ public class SecurityConfiguration {
                         authorizeHttpRequests
                         .requestMatchers("/api/v1/auth/register").permitAll()
                                 .requestMatchers("/api/v1/auth/login").permitAll()
+                                .requestMatchers("/api/v1/auth/refresh").permitAll()
+                                .requestMatchers("/api/v1/auth/logout").permitAll()
                         .anyRequest().authenticated()
                 )
 //                .httpBasic(Customizer.withDefaults());
@@ -90,11 +95,14 @@ public class SecurityConfiguration {
                                     authException.printStackTrace(); // Log the exception for debugging
                                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                                     response.setContentType("application/json");
+                                    String message = "Unauthorized access: " + authException.getMessage();
 
-                                    String message = "Unauthorized access: "
-                                            + authException.getMessage();
+                                    String errorMessage = (String) request.getAttribute("error");
+                                    if (errorMessage != null) {
+                                        message = errorMessage;
+                                    }
 
-                                    Map<String, String> errorMap = Map.of(
+                                    Map<String, Object> errorMap = Map.of(
                                             "message", message,
                                             "status", String.valueOf(401),
                                             "statusCode", Integer.toString(HttpServletResponse.SC_UNAUTHORIZED)
@@ -112,4 +120,11 @@ public class SecurityConfiguration {
         return http.build();
     }
 
+    @Bean
+    public AuthenticationManager authenticationManagerBean(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+
+        return authenticationConfiguration.getAuthenticationManager();
+    }
+
 }
+

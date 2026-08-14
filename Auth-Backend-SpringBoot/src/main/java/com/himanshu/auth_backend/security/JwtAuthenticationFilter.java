@@ -3,9 +3,7 @@ package com.himanshu.auth_backend.security;
 import com.himanshu.auth_backend.entities.Users;
 import com.himanshu.auth_backend.helpers.UserHelper;
 import com.himanshu.auth_backend.repositories.UserRepository;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.*;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -96,11 +94,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             });
 
         }
-        catch (JwtException | IllegalArgumentException e) {
-            // invalid / expired / tampered token -> user simply unauthenticated rahega
+        catch (ExpiredJwtException e) {
+            request.setAttribute("expired", e.getMessage());
+            logger.error("JWT token has expired: " + e.getMessage());
             e.printStackTrace();
         }
-
+        catch (JwtException e) {
+            request.setAttribute("error", e.getMessage());
+            logger.error("JWT token is invalid: " + e.getMessage());
+            e.printStackTrace();
+        }
+        catch (Exception e) {
+            request.setAttribute("error", e.getMessage());
+            logger.error("Error occurred while processing JWT token: " + e.getMessage());
+            e.printStackTrace();
+        }
         filterChain.doFilter(request, response);
     }
 
@@ -111,5 +119,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getRoleName().name()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+            return request.getRequestURI().startsWith("/api/v1/auth/login")
+                    || request.getRequestURI().startsWith("/api/v1/auth/register")
+                    || request.getRequestURI().startsWith("/api/v1/auth/refresh-token");
     }
 }
